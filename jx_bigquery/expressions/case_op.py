@@ -5,14 +5,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http:# mozilla.org/MPL/2.0/.
 #
-# Author: Kyle Lahnakoski (kyle@lahnakoski.com)
+# Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 from __future__ import absolute_import, division, unicode_literals
 
 from jx_base.expressions import CaseOp as CaseOp_
-from jx_bigquery.expressions._utils import SQLang, check
+from jx_bigquery.expressions._utils import BQLang, check
 from mo_dots import coalesce, wrap
-from pyLibrary.sql import (
+from mo_sql import (
     SQL_CASE,
     SQL_ELSE,
     SQL_END,
@@ -25,21 +25,21 @@ from pyLibrary.sql import (
 
 class CaseOp(CaseOp_):
     @check
-    def to_sql(self, schema, not_null=False, boolean=False):
+    def to_bq(self, schema, not_null=False, boolean=False):
         if len(self.whens) == 1:
-            return SQLang[self.whens[-1]].to_sql(schema)
+            return BQLang[self.whens[-1]].to_bq(schema)
 
         output = {}
-        for t in "bsn":  # EXPENSIVE LOOP to_sql() RUN 3 TIMES
-            els_ = coalesce(SQLang[self.whens[-1]].to_sql(schema)[0].sql[t], SQL_NULL)
+        for t in "bsn":  # EXPENSIVE LOOP to_bq() RUN 3 TIMES
+            els_ = coalesce(BQLang[self.whens[-1]].to_bq(schema)[0].sql[t], SQL_NULL)
             acc = SQL_ELSE + els_ + SQL_END
             for w in reversed(self.whens[0:-1]):
                 acc = ConcatSQL(
                     (
                         SQL_WHEN,
-                        SQLang[w.when].to_sql(schema, boolean=True)[0].sql.b,
+                        BQLang[w.when].to_bq(schema, boolean=True)[0].sql.b,
                         SQL_THEN,
-                        coalesce(SQLang[w.then].to_sql(schema)[0].sql[t], SQL_NULL),
+                        coalesce(BQLang[w.then].to_bq(schema)[0].sql[t], SQL_NULL),
                         acc,
                     )
                 )

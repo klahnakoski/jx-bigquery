@@ -5,21 +5,21 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http:# mozilla.org/MPL/2.0/.
 #
-# Author: Kyle Lahnakoski (kyle@lahnakoski.com)
+# Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 from __future__ import absolute_import, division, unicode_literals
 
 from jx_base.expressions import AbsOp as AbsOp_
-from jx_bigquery.expressions._utils import SQLang, check
-from jx_bigquery.expressions.sql_script import SQLScript
+from jx_bigquery.expressions._utils import BQLang, check
+from jx_bigquery.expressions.bql_script import BQLScript
 from mo_json import NUMBER
 
 
 class AbsOp(AbsOp_):
     @check
-    def to_sql(self, schema, not_null=False, boolean=False):
-        expr = SQLang[self.term].partial_eval().to_sql(schema)[0].sql.n
-        return SQLScript(
+    def to_bq(self, schema, not_null=False, boolean=False):
+        expr = BQLang[self.term].partial_eval().to_bq(schema)[0].sql.n
+        return BQLScript(
             expr="ABS(" + expr + ")",
             data_type=NUMBER,
             frum=self,

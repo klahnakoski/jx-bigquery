@@ -5,14 +5,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http:# mozilla.org/MPL/2.0/.
 #
-# Author: Kyle Lahnakoski (kyle@lahnakoski.com)
+# Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 from __future__ import absolute_import, division, unicode_literals
 
 from jx_base.expressions import CountOp as CountOp_
-from jx_bigquery.expressions._utils import SQLang, check
+from jx_bigquery.expressions._utils import BQLang, check
 from mo_dots import wrap
-from pyLibrary.sql import (
+from mo_sql import (
     SQL,
     SQL_CASE,
     SQL_ELSE,
@@ -30,10 +30,10 @@ from pyLibrary.sql import (
 
 class CountOp(CountOp_):
     @check
-    def to_sql(self, schema, not_null=False, boolean=False):
+    def to_bq(self, schema, not_null=False, boolean=False):
         acc = []
         for term in self.terms:
-            sqls = SQLang[term].to_sql(schema)
+            sqls = BQLang[term].to_bq(schema)
             if len(sqls) > 1:
                 acc.append(SQL_TRUE)
             else:

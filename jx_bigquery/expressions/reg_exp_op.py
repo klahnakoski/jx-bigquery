@@ -5,7 +5,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http:# mozilla.org/MPL/2.0/.
 #
-# Author: Kyle Lahnakoski (kyle@lahnakoski.com)
+# Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 from __future__ import absolute_import, division, unicode_literals
 
@@ -17,7 +17,7 @@ from mo_json import json2value
 
 class RegExpOp(RegExpOp_):
     @check
-    def to_sql(self, schema, not_null=False, boolean=False):
+    def to_bq(self, schema, not_null=False, boolean=False):
         pattern = quote_value(json2value(self.pattern.json))
-        value = self.var.to_sql(schema)[0].sql.s
+        value = self.var.to_bq(schema)[0].sql.s
         return wrap([{"name": ".", "sql": {"b": value + " REGEXP " + pattern}}])

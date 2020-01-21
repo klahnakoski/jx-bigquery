@@ -5,7 +5,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http:# mozilla.org/MPL/2.0/.
 #
-# Author: Kyle Lahnakoski (kyle@lahnakoski.com)
+# Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
 #
 from __future__ import absolute_import, division, unicode_literals
 
@@ -16,12 +16,12 @@ from jx_bigquery.expressions.length_op import LengthOp
 from jx_bigquery.expressions.literal import Literal
 from jx_bigquery.expressions.right_op import RightOp
 from mo_dots import wrap
-from pyLibrary.sql import SQL_FALSE, SQL_TRUE
+from mo_sql import SQL_FALSE, SQL_TRUE
 
 
 class SuffixOp(SuffixOp_):
     @check
-    def to_sql(self, schema, not_null=False, boolean=False):
+    def to_bq(self, schema, not_null=False, boolean=False):
         if not self.expr:
             return wrap([{"name": ".", "sql": {"b": SQL_FALSE}}])
         elif isinstance(self.suffix, Literal) and not self.suffix.value:
@@ -30,5 +30,5 @@ class SuffixOp(SuffixOp_):
             return (
                 EqOp([RightOp([self.expr, LengthOp(self.suffix)]), self.suffix])
                 .partial_eval()
-                .to_sql(schema)
+                .to_bq(schema)
             )
