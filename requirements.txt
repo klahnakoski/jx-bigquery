@@ -6,5 +6,5 @@ mo-times
 jx-python
 mo-json
 mo-times
-jx_python
+jx-python
 google-cloud-bigquery
