@@ -16,7 +16,7 @@
     "license": "MPL 2.0",
     "long_description_content_type": "text/markdown",
     "name": "jx-bigquery",
-    "packages": ["jx-bigquery"],
+    "packages": ["jx_bigquery/expressions", "jx_bigquery"],
     "python_requires": "==2.7, ==3.6, ==3.7, ==3.8",
     "url": "https://github.com/klahnakoski/jx-bigquery",
     "version": "3.33.20028"
