@@ -14,10 +14,10 @@
     "description": "jx-bigquery - JSON Expressions for BigQuery",
     "include_package_data": true,
     "install_requires": [
-        "google-cloud-bigquery",             "jx-python",             "jx-python",
-                      "mo-dots",             "mo-future",               "mo-json",
-                    "mo-kwargs",               "mo-logs",              "mo-times",
-                     "mo-times"
+        "google-cloud-bigquery", "jx-python>=3.38.20029", "jx-python>=3.38.20029",
+          "mo-dots>=3.33.20028", "mo-future>=3.32.20028",   "mo-json>=3.38.20029",
+        "mo-kwargs>=3.38.20029",   "mo-logs>=3.38.20029",    "mo-sql>=3.34.20028",
+         "mo-times>=3.38.20029",  "mo-times>=3.38.20029"
     ],
     "license": "MPL 2.0",
     "long_description": {
@@ -124,5 +124,5 @@
     "packages": ["jx_bigquery/expressions", "jx_bigquery"],
     "python_requires": "==2.7, ==3.6, ==3.7, ==3.8",
     "url": "https://github.com/klahnakoski/jx-bigquery",
-    "version": "3.34.20028"
+    "version": "3.38.20029"
 }
