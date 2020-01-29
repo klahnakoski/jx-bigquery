@@ -8,3 +8,4 @@ mo-json
 mo-times
 jx-python
 google-cloud-bigquery
+mo-sql
