@@ -82,7 +82,7 @@ The library is intended to manage multiple Big Query tables to give the illusion
 ## Usage
 
 Setup `Dataset` with an application name
-s
+
 ```python
     destination = bigquery.Dataset(
         dataset=application_name, 
@@ -90,7 +90,7 @@ s
     ).get_or_create_table(settings.destination)
 ```
 
-
+Insert documents as you please
 
 
 ```python
