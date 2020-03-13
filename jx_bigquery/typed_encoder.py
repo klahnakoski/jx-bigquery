@@ -12,7 +12,8 @@ import string
 
 from jx_bigquery.sql import escape_name, TIMESTAMP_FORMAT, unescape_name, ApiName
 from jx_python import jx
-from mo_dots import is_many, is_data, wrap, split_field, join_field, Data, SLOT, FlatList, NullType, DataObject
+from mo_dots import is_many, is_data, wrap, split_field, join_field, Data, SLOT, FlatList, NullType, DataObject, \
+    set_default
 from mo_future import is_text, text, generator_types
 from mo_json import (
     BOOLEAN,
@@ -64,6 +65,12 @@ def typed_encode(value, flake):
 
 
 def _typed_encode(value, schema):
+    """
+    RETURN TRIPLE
+    output - THE ENCODED VALUE
+    update - THE ADDITIONAL SCHEMA OVER schema PROVIDED
+    nested - True IF NESTING IS REQUIRED (CONSIDERED SERIOUS SCHEMA CHANGE)
+    """
     if is_many(value):
         output = []
         update = {}
@@ -75,7 +82,7 @@ def _typed_encode(value, schema):
         for r in value:
             v, m, n = _typed_encode(r, child_schema)
             output.append(v)
-            update.update(m)
+            set_default(update, m)
             nest_added |= n
 
         if update:
@@ -97,9 +104,8 @@ def _typed_encode(value, schema):
                 child_schema = schema[k] = {}
             result, more_update, n = _typed_encode(v, child_schema)
             output[text(escape_name(k))] = result
-            if more_update:
-                update.update({k: more_update})
-                nest_added |= n
+            set_default(update, {k: more_update})
+            nest_added |= n
         return output, update, nest_added
     elif is_text(schema):
         v, inserter_type, json_type = schema_type(value)
@@ -176,7 +182,10 @@ def _untype_dict(value):
         if k == NESTED_TYPE:
             return _untype_list(v)
         elif k in typed_to_bq_type:
-            return _untype_value(v)
+            vv = _untype_value(v)
+            if vv is not None:
+                # WE ASSUME A PRIMITIVE VALUE, NOT SOME GREATER STRUCTURE
+                return vv
         else:
             new_v = _untype_value(v)
             if new_v is not None:

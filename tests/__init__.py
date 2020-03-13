@@ -13,6 +13,7 @@ from __future__ import absolute_import, division, unicode_literals
 from mo_logs import constants, startup, Log
 from mo_testing.fuzzytestcase import FuzzyTestCase
 
+from jx_bigquery import bigquery
 
 config = None
 
@@ -22,6 +23,7 @@ class TestBigQuery(FuzzyTestCase):
     @classmethod
     def setUpClass(cls):
         global config
+        bigquery.DEBUG = True
         config = startup.read_settings(filename="tests/config.json")
         constants.set(config.constants)
         Log.start(config.debug)

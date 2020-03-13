@@ -16,7 +16,7 @@ from google.cloud import bigquery
 from google.oauth2 import service_account
 from jx_base import Container, Facts
 from jx_python import jx
-from mo_dots import listwrap, unwrap, join_field, Null, is_data, Data, wrap
+from mo_dots import listwrap, unwrap, join_field, Null, is_data, Data, wrap, set_default
 from mo_future import is_text, text, first
 from mo_json import INTEGER
 from mo_kwargs import override
@@ -60,6 +60,7 @@ from jx_bigquery.typed_encoder import (
     json_type_to_bq_type,
     INTEGER_TYPE, untyped)
 
+DEBUG = False
 EXTEND_LIMIT = 2 * MINUTE  # EMIT ERROR IF ADDING RECORDS TO TABLE TOO OFTEN
 MAX_MERGE = 10  # MAXIMUM NUMBER OF TABLES TO MERGE AT ONCE
 SUFFIX_PATTERN = re.compile(r"__\w{20}")
@@ -320,7 +321,7 @@ class Table(Facts):
         MOSTLY FOR TESTING, RETURN ALL RECORDS IN TABLE
         :return:
         """
-        sql = ConcatSQL(SQL_SELECT, SQL_STAR, SQL_FROM, quote_column(self.full_name))
+        sql = sql_query({"from": self.full_name})
         query_job = self.container.client.query(text(sql))
         return list(untyped(dict(row)) for row in query_job)
 
@@ -349,7 +350,7 @@ class Table(Facts):
                     output = []
                     for rownum, row in enumerate(rows):
                         typed, more, add_nested = typed_encode(row, self.flake)
-                        update.update(more)
+                        set_default(update, more)
                         if add_nested:
                             # row HAS NEW NESTED COLUMN!
                             # GO OVER THE rows AGAIN SO "RECORD" GET MAPPED TO "REPEATED"
@@ -506,6 +507,7 @@ class Table(Facts):
                         ),
                     ),
                 )
+                DEBUG and Log.note("{{sql}}", sql=text(command))
                 job = self.container.query_and_wait(command)
                 Log.note("job {{id}} state = {{state}}", id=job.job_id, state=job.state)
 
@@ -522,6 +524,7 @@ class Table(Facts):
         for s, shard, _ in unmatched:
             try:
                 command = ConcatSQL(SQL_INSERT, quote_column(primary_full_name), s)
+                DEBUG and Log.note("{{sql}}", sql=text(command))
                 job = self.container.query_and_wait(command)
                 Log.note(
                     "from {{shard}}, job {{id}}, state {{state}}",
