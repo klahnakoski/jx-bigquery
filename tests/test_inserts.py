@@ -116,12 +116,12 @@ class TestInerts(tests.TestBigQuery):
         table.add({"__a": 3, "__b": [{"__c": [{"__e": 2}, {"__e": 3}]}]})
 
         table.merge_shards()
-        result = table.all_records()
+        result = jx.sort(table.all_records(), "__a")
 
         expected = [
             {"__a": 1, "__b": {"__c": [{"__e": "e"}, {"__e": 1}]}},
             {"__a": 2, "__b": {"__c": 1}},
-            {"__a": 3, "__b": [{"__c": [{"__e": 2}, {"__e": 3}]}]},
+            {"__a": 3, "__b": {"__c": [{"__e": 2}, {"__e": 3}]}},
         ]
 
         self.assertEqual(result, expected)

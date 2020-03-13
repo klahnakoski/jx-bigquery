@@ -310,22 +310,16 @@ def merge(schemas, es_index, top_level_fields, partition):
             return schemas[0]
         try:
             if any(NESTED_TYPE in s for s in schemas):
-                keys = set()
+                # IF THERE ARE ANY ARRAYS, THEN THE MERGE IS AN ARRAY
                 new_schemas = []
-                for s in schemas:
-                    if NESTED_TYPE in s:
-                        sub = s[NESTED_TYPE]
-                        oth = copy(s)
-                        del oth[NESTED_TYPE]
-                        new_s = _merge(sub, oth)
+                for schema in schemas:
+                    if NESTED_TYPE in schema:
+                        sub_schema = schema[NESTED_TYPE]
+                        residue = {k: v for k, v in schema.items() if k != NESTED_TYPE}
+                        new_schemas.append(_merge(sub_schema, residue))
                     else:
-                        new_s = s
-                    new_schemas.append(new_s)
-                    keys |= new_s.keys()
-                try:
-                    return {NESTED_TYPE: _merge(*new_schemas)}
-                except Exception as e:
-                    raise e
+                        new_schemas.append(schema)
+                return {NESTED_TYPE: _merge(*new_schemas)}
             else:
                 return OrderedDict(
                     (k, _merge(*(ss for s in schemas for ss in [s.get(k)] if ss)))

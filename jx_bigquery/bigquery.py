@@ -234,10 +234,10 @@ class Dataset(Container):
     def query_and_wait(self, sql):
         job = self.client.query(text(sql))
         while job.state == "RUNNING":
-            Log.note("job {{id}} state = {{state}}", id=job.job_id, state=job.state)
+            DEBUG and Log.note("job {{id}} state = {{state}}", id=job.job_id, state=job.state)
             Till(seconds=1).wait()
             job = self.client.get_job(job.job_id)
-        Log.note("job {{id}} state = {{state}}", id=job.job_id, state=job.state)
+        DEBUG and Log.note("job {{id}} state = {{state}}", id=job.job_id, state=job.state)
         return job
 
 
