@@ -9,6 +9,8 @@
 #
 from __future__ import absolute_import, division, unicode_literals
 
+from copy import copy
+
 from google.cloud.bigquery import SchemaField
 
 import jx_base
@@ -307,10 +309,28 @@ def merge(schemas, es_index, top_level_fields, partition):
         if len(schemas) == 1:
             return schemas[0]
         try:
-            return OrderedDict(
-                (k, _merge(*[ss for s in schemas for ss in [s.get(k)] if ss]))
-                for k in jx.sort(set(k for s in schemas for k in s.keys()))
-            )
+            if any(NESTED_TYPE in s for s in schemas):
+                keys = set()
+                new_schemas = []
+                for s in schemas:
+                    if NESTED_TYPE in s:
+                        sub = s[NESTED_TYPE]
+                        oth = copy(s)
+                        del oth[NESTED_TYPE]
+                        new_s = _merge(sub, oth)
+                    else:
+                        new_s = s
+                    new_schemas.append(new_s)
+                    keys |= new_s.keys()
+                try:
+                    return {NESTED_TYPE: _merge(*new_schemas)}
+                except Exception as e:
+                    raise e
+            else:
+                return OrderedDict(
+                    (k, _merge(*(ss for s in schemas for ss in [s.get(k)] if ss)))
+                    for k in jx.sort(set(k for s in schemas for k in s.keys()))
+                )
         except Exception as e:
             e = Except.wrap(e)
             if "Expecting types to match" in e:

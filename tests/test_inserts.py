@@ -9,21 +9,63 @@
 #
 from __future__ import absolute_import, division, unicode_literals
 
+from jx_base.expressions import NULL
 from jx_python import jx
+from mo_future import NEXT, text
 
 import tests
 from jx_bigquery.bigquery import Dataset
 
 
+def table_name():
+    i = 0;
+    while True:
+        yield "table" + text(i)
+        i = i + 1
+
+
+table_name = NEXT(table_name())
+
+
 class TestInerts(tests.TestBigQuery):
+    def test_primitives(self):
+        dataset = Dataset("testing", kwargs=tests.config.destination)
+        table = dataset.create_or_replace_table(table=table_name(), sharded=True)
+        table.add(42)
+        table.add(None)
+        table.add("test")
+        table.add({})
+
+        table.merge_shards()
+        result = jx.sort(table.all_records(), ".")
+
+        expected = [
+            42,
+            "test",
+            NULL,
+            NULL
+        ]
+
+        self.assertEqual(result, expected)
+
+    def test_array(self):
+        dataset = Dataset("testing", kwargs=tests.config.destination)
+        table = dataset.create_or_replace_table(table=table_name(), sharded=True)
+        table.add({"b": [1, 2, 3, 4, 5, 6]})
+        table.merge_shards()
+        result = jx.sort(table.all_records(), "a")
+
+        expected = [{"b": [1, 2, 3, 4, 5, 6]}]
+        self.assertEqual(result, expected)
+
     def test_one_then_many_then_merge(self):
         dataset = Dataset("testing", kwargs=tests.config.destination)
-        table1 = dataset.create_or_replace_table(table="table1", sharded=True)
-        table1.add({"a": 1, "b": {"c": 1, "d": 1}})
-        table1.add({"a": 2, "b": [{"c": 1, "d": 1}, {"c": 2, "d": 2}]})
+        table = dataset.create_or_replace_table(table=table_name(), sharded=True)
+        table.add({"a": 1, "b": {"c": 1, "d": 1}})
+        table.add({"a": 2, "b": [{"c": 1, "d": 1}, {"c": 2, "d": 2}]})
 
-        table1.merge_shards()
-        result = jx.sort(table1.all_records(), "a")
+        table.merge_shards()
+        result = jx.sort(table.all_records(), "a")
 
         expected = [
             {"a": 1, "b": {"c": 1, "d": 1}},
@@ -34,12 +76,12 @@ class TestInerts(tests.TestBigQuery):
 
     def test_one_then_deep_arrays1(self):
         dataset = Dataset("testing", kwargs=tests.config.destination)
-        table2 = dataset.create_or_replace_table(table="table2", sharded=True)
-        table2.add({"a": 1, "b": {"c": [{"e": "e"}, {"e": 1}]}})
-        table2.add({"a": 2, "b": {"c": 1}})
+        table = dataset.create_or_replace_table(table=table_name(), sharded=True)
+        table.add({"a": 1, "b": {"c": [{"e": "e"}, {"e": 1}]}})
+        table.add({"a": 2, "b": {"c": 1}})
 
-        table2.merge_shards()
-        result = jx.sort(table2.all_records(), "a")
+        table.merge_shards()
+        result = jx.sort(table.all_records(), "a")
 
         expected = [
             {"a": 1, "b": {"c": [{"e": "e"}, {"e": 1}]}},
@@ -50,31 +92,31 @@ class TestInerts(tests.TestBigQuery):
 
     def test_one_then_deep_arrays2(self):
         dataset = Dataset("testing", kwargs=tests.config.destination)
-        table2 = dataset.create_or_replace_table(table="table2", sharded=True)
-        table2.add({"a": 1, "b": {"c": [{"e": "e"}, {"e": 1}]}})
-        table2.add({"a": 2, "b": {"c": 1}})
-        table2.add({"a": 3, "b": [{"c": [{"e": 2}, {"e": 3}]}]})
+        table = dataset.create_or_replace_table(table=table_name(), sharded=True)
+        table.add({"a": 1, "b": {"c": [{"e": "e"}, {"e": 1}]}})
+        table.add({"a": 2, "b": {"c": 1}})
+        table.add({"a": 3, "b": [{"c": [{"e": 2}, {"e": 3}]}, {"c": 42}]})
 
-        table2.merge_shards()
-        result = jx.sort(table2.all_records(), "a")
+        table.merge_shards()
+        result = jx.sort(table.all_records(), "a")
 
         expected = [
             {"a": 1, "b": {"c": [{"e": "e"}, {"e": 1}]}},
             {"a": 2, "b": {"c": 1}},
-            {"a": 3, "b": [{"c": [{"e": 2}, {"e": 3}]}]},
+            {"a": 3, "b": [{"c": [{"e": 2}, {"e": 3}]}, {"c": 42}]},
         ]
 
         self.assertEqual(result, expected)
 
     def test_encoding_on_deep_arrays(self):
         dataset = Dataset("testing", kwargs=tests.config.destination)
-        table2 = dataset.create_or_replace_table(table="table2", sharded=True)
-        table2.add({"__a": 1, "__b": {"__c": [{"__e": "e"}, {"__e": 1}]}})
-        table2.add({"__a": 2, "__b": {"__c": 1}})
-        table2.add({"__a": 3, "__b": [{"__c": [{"__e": 2}, {"__e": 3}]}]})
+        table = dataset.create_or_replace_table(table=table_name(), sharded=True)
+        table.add({"__a": 1, "__b": {"__c": [{"__e": "e"}, {"__e": 1}]}})
+        table.add({"__a": 2, "__b": {"__c": 1}})
+        table.add({"__a": 3, "__b": [{"__c": [{"__e": 2}, {"__e": 3}]}]})
 
-        table2.merge_shards()
-        result = table2.all_records()
+        table.merge_shards()
+        result = table.all_records()
 
         expected = [
             {"__a": 1, "__b": {"__c": [{"__e": "e"}, {"__e": 1}]}},
@@ -83,3 +125,4 @@ class TestInerts(tests.TestBigQuery):
         ]
 
         self.assertEqual(result, expected)
+

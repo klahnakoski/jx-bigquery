@@ -117,7 +117,7 @@ def _typed_encode(value, schema):
             )
         return v, None, False
     elif value is None:
-        return {text(escape_name(t)): None for t, child_schema in schema}, None, False
+        return {text(escape_name(t)): None for t, child_schema in schema.items()}, None, False
     else:
         v, inserter_type, json_type = schema_type(value)
         child_schema = schema.get(inserter_type)
@@ -175,7 +175,7 @@ def _untype_list(value):
 
 
 def _untype_dict(value):
-    output = {}
+    output = None
 
     for k, v in value.items():
         k = unescape_name(ApiName(k))
@@ -189,7 +189,10 @@ def _untype_dict(value):
         else:
             new_v = _untype_value(v)
             if new_v is not None:
-                output[k] = new_v
+                if output is None:
+                    output = {k: new_v}
+                else:
+                    output[k] = new_v
     return output
 
 

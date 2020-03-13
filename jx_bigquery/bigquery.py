@@ -325,7 +325,6 @@ class Table(Facts):
         query_job = self.container.client.query(text(sql))
         return list(untyped(dict(row)) for row in query_job)
 
-
     @property
     def flake(self):
         return self._flake
@@ -592,6 +591,7 @@ class Table(Facts):
             )
         )
 
+
 def _extract_primary_shard_name(view_sql):
     # TODO: USE REAL PARSER
     e = view_sql.lower().find("from ")
@@ -606,14 +606,7 @@ def gen_select(total_flake, flake):
     :return:
     """
 
-    def _gen_select(
-        source_path,  # THE PATH TO THIS BRANCH
-        total_path,  # THE DATABASE PATH TO THIS BRANCH
-        total_tops,  # TOP-LEVEL FIELDS FOR DESTINATION
-        total_flake,  # FIELDS OF THIS BRANCH
-        source_tops,  # TOP-LEVEL FIELDS FOR SOURCE
-        source_flake,  # FIELDS OF THIS BRANCH
-    ):
+    def _gen_select(source_path, source_tops, source_flake, total_path, total_tops, total_flake):
         if total_flake == source_flake and total_tops == source_tops:
             if not source_path:  # TOP LEVEL FIELDS
                 return [
@@ -624,9 +617,8 @@ def gen_select(total_flake, flake):
             elif total_tops:
                 Log.error("top level fields are not expected at this point (?nested?)")
             else:
-                es_path = sum(map(escape_name, source_path), ApiName())
                 return [
-                    quote_column(es_path + escape_name(k)) for k in total_flake.keys()
+                    quote_column(source_path + escape_name(k)) for k in total_flake.keys()
                 ]
 
         if NESTED_TYPE in total_flake:
@@ -642,31 +634,22 @@ def gen_select(total_flake, flake):
                         SQL_SELECT_AS_STRUCT,
                         JoinSQL(
                             ConcatSQL(SQL_COMMA, SQL_CR),
-                            _gen_select(
-                                source_path,
-                                total_path + REPEATED,
-                                Null,
-                                t,
-                                Null,
-                                source_flake,
-                            ),
+                            _gen_select(source_path, Null, source_flake, total_path + REPEATED, Null, t),
                         ),
                     )
                 ]
             else:
-                row_name = "row" + text(len(source_path))
-                ord_name = "ordering" + text(len(source_path))
+                row_name = "row" + text(len(source_path.values))
+                ord_name = "ordering" + text(len(source_path.values))
                 inner = [
                     ConcatSQL(
                         SQL_SELECT_AS_STRUCT,
                         JoinSQL(
                             ConcatSQL(SQL_COMMA, SQL_CR),
-                            _gen_select(
-                                [row_name], ApiName(row_name), Null, t, Null, v
-                            ),
+                            _gen_select(ApiName(row_name), Null, v, ApiName(row_name), Null, t),
                         ),
                         SQL_FROM,
-                        sql_call("UNNEST", quote_column(total_path + escape_name(k))),
+                        sql_call("UNNEST", quote_column(source_path + escape_name(k))),
                         SQL_AS,
                         SQL(row_name),
                         SQL(" WITH OFFSET AS "),
@@ -697,26 +680,26 @@ def gen_select(total_flake, flake):
             elif is_data(t):
                 if not v:
                     selects = _gen_select(
-                        source_path + [k],
-                        total_path + escape_name(k),
-                        k_total_tops,
-                        t,
+                        source_path + escape_name(k),
                         source_tops,
                         {},
+                        total_path + escape_name(k),
+                        k_total_tops,
+                        t
                     )
                 elif is_data(v):
                     selects = _gen_select(
-                        source_path + [k],
-                        total_path + escape_name(k),
-                        k_total_tops,
-                        t,
+                        source_path + escape_name(k),
                         source_tops,
                         v,
+                        total_path + escape_name(k),
+                        k_total_tops,
+                        t
                     )
                 else:
                     raise Log.error(
                         "Datatype mismatch on {{field}}: Can not merge {{type}} into {{main}}",
-                        field=join_field(source_path + [k]),
+                        field=join_field(source_path + escape_name(k)),
                         type=v,
                         main=t,
                     )
@@ -745,7 +728,7 @@ def gen_select(total_flake, flake):
                     if v:
                         Log.note(
                             "Datatype mismatch on {{field}}: Can not merge {{type}} into {{main}}",
-                            field=join_field(source_path + [k]),
+                            field=join_field(source_path + escape_name(k)),
                             type=v,
                             main=t,
                         )
@@ -765,14 +748,8 @@ def gen_select(total_flake, flake):
                 Log.error("not expected")
         return selection
 
-    output = _gen_select(
-        [],
-        ApiName(),
-        total_flake.top_level_fields,
-        total_flake.schema,
-        flake.top_level_fields,
-        flake.schema,
-    )
+    output = _gen_select(ApiName(), flake.top_level_fields, flake.schema, ApiName(), total_flake.top_level_fields,
+                         total_flake.schema)
     tops = []
 
     for path, name in total_flake.top_level_fields.leaves():
