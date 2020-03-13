@@ -1,29 +1,24 @@
+# encoding: utf-8
+#
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at http:# mozilla.org/MPL/2.0/.
+#
+# Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
+#
+from __future__ import absolute_import, division, unicode_literals
+
 import re
+from copy import copy
 
 from google.cloud import bigquery
 from google.oauth2 import service_account
-
 from jx_base import Container, Facts
-from jx_bigquery import snowflakes
-from jx_bigquery.snowflakes import Snowflake
-from jx_bigquery.sql import (
-    quote_column,
-    ALLOWED,
-    sql_call,
-    sql_alias,
-    escape_name,
-    ApiName,
-    sql_query,
-)
-from jx_bigquery.typed_encoder import (
-    NESTED_TYPE,
-    typed_encode,
-    REPEATED,
-    json_type_to_bq_type,
-)
 from jx_python import jx
 from mo_dots import listwrap, unwrap, join_field, Null, is_data, Data, wrap
 from mo_future import is_text, text, first
+from mo_json import INTEGER
 from mo_kwargs import override
 from mo_logs import Log, Except
 from mo_math.randoms import Random
@@ -42,13 +37,31 @@ from mo_sql import (
     SQL_INSERT,
     SQL_DESC,
     SQL_UNION_ALL,
-)
+    SQL_STAR)
 from mo_threads import Till
 from mo_times import MINUTE, Timer
 from mo_times.dates import Date
 
-EXTEND_LIMIT = 2 * MINUTE  # EMIT ERROR IF ADDING RECORDS TO TABLE TOO OFTEN
+from jx_bigquery import snowflakes
+from jx_bigquery.snowflakes import Snowflake
+from jx_bigquery.sql import (
+    quote_column,
+    ALLOWED,
+    sql_call,
+    sql_alias,
+    escape_name,
+    ApiName,
+    sql_query,
+)
+from jx_bigquery.typed_encoder import (
+    NESTED_TYPE,
+    typed_encode,
+    REPEATED,
+    json_type_to_bq_type,
+    INTEGER_TYPE, untyped)
 
+EXTEND_LIMIT = 2 * MINUTE  # EMIT ERROR IF ADDING RECORDS TO TABLE TOO OFTEN
+MAX_MERGE = 10  # MAXIMUM NUMBER OF TABLES TO MERGE AT ONCE
 SUFFIX_PATTERN = re.compile(r"__\w{20}")
 
 
@@ -119,13 +132,29 @@ class Dataset(Container):
             self.delete_table(table)
         except Exception as e:
             e = Except.wrap(e)
-            if "Not found: Table" not in e:
+            if "Not found: Table" not in e and "Unable to get TableReference" not in e:
                 Log.error("could not get table {{table}}", table=table, cause=e)
         return self.create_table(kwargs=kwargs)
 
     def delete_table(self, name):
-        full_name = self.full_name + escape_name(name)
-        self.client.delete_table(full_name)
+        api_name = escape_name(name)
+
+        tables = list(self.client.list_tables(self.dataset))
+        for table_item in tables:
+            table = table_item.reference
+            table_api_name = ApiName(table.table_id)
+            if text(table_api_name).startswith(text(api_name)):
+                if table_api_name == api_name:
+                    if table_item.table_type != "VIEW":
+                        Log.error("expecting {{table}} to be a view", table=api_name)
+                    self.client.delete_table(table)
+                elif SUFFIX_PATTERN.match(text(table_api_name)[len(text(api_name)):]):
+                    try:
+                        self.client.delete_table(table)
+                    except Exception as e:
+                        Log.warning(
+                            "could not delete table {{table}}", table=table, cause=e
+                        )
 
     @override
     def create_table(
@@ -137,12 +166,19 @@ class Dataset(Container):
         sharded=False,
         partition=Null,  # PARTITION RULES
         cluster=None,  # TUPLE OF FIELDS TO SORT DATA
-        top_level_fields=None,
+        top_level_fields=Null,
         kwargs=None,
     ):
         if kwargs.lookup != None or kwargs.flake != None:
             Log.error("expecting schema, not lookup")
         full_name = self.full_name + escape_name(table)
+        if not schema:
+            # WE MUST HAVE SOMETHING
+            if typed:
+                schema = copy(DEFAULT_TYPED_SCHEMA)
+            else:
+                schema = copy(DEFAULT_SCHEMA)
+
         flake = Snowflake(text(full_name), top_level_fields, partition, schema=schema)
 
         if read_only:
@@ -160,10 +196,7 @@ class Dataset(Container):
                 if c
             ] or None
             self.shard = self.client.create_table(_shard)
-
-            if schema:
-                # ONLY MAKE THE VIEW IF THERE IS A SCHEMA
-                self.create_view(full_name, shard_api_name)
+            self.create_view(full_name, shard_api_name)
         else:
             _table = bigquery.Table(text(full_name), schema=flake.to_bq_schema())
             _table.time_partitioning = unwrap(flake._partition.bq_time_partitioning)
@@ -193,6 +226,9 @@ class Dataset(Container):
                 sql_query({"from": shard_api_name}),
             )
         )
+        if job.errors:
+            Log.error("Can not create view\n{{errors|json|indent}}", errors=job.errors)
+        pass
 
     def query_and_wait(self, sql):
         job = self.client.query(text(sql))
@@ -200,6 +236,7 @@ class Dataset(Container):
             Log.note("job {{id}} state = {{state}}", id=job.job_id, state=job.state)
             Till(seconds=1).wait()
             job = self.client.get_job(job.job_id)
+        Log.note("job {{id}} state = {{state}}", id=job.job_id, state=job.state)
         return job
 
 
@@ -277,6 +314,16 @@ class Table(Facts):
                 container.create_view(self.full_name, ApiName(self.shard.table_id))
 
         self.last_extend = Date.now() - EXTEND_LIMIT
+
+    def all_records(self):
+        """
+        MOSTLY FOR TESTING, RETURN ALL RECORDS IN TABLE
+        :return:
+        """
+        sql = ConcatSQL(SQL_SELECT, SQL_STAR, SQL_FROM, quote_column(self.full_name))
+        query_job = self.container.client.query(text(sql))
+        return list(untyped(dict(row)) for row in query_job)
+
 
     @property
     def flake(self):
@@ -372,7 +419,13 @@ class Table(Facts):
                     view_sql = current_view.view_query
                     primary_shard_name = _extract_primary_shard_name(view_sql)
                 elif SUFFIX_PATTERN.match(text(table_api_name)[len(text(api_name)) :]):
-                    shards.append(self.container.client.get_table(table))
+                    try:
+                        known_table = self.container.client.get_table(table)
+                        shards.append(known_table)
+                    except Exception as e:
+                        Log.warning(
+                            "could not merge table {{table}}", table=table, cause=e
+                        )
 
         if not current_view:
             Log.error(
@@ -434,47 +487,62 @@ class Table(Facts):
             else:
                 unmatched.append((sel, shard, flake))
 
-        # EVERYTHING THAT IS IDENTICAL TO PRIMARY CAN BE MERGED IN A SINGLE QUERY
+        # EVERYTHING THAT IS IDENTICAL TO PRIMARY CAN BE MERGED WITH SIMPLE UNION ALL
         if matched:
-            command = ConcatSQL(
-                SQL_INSERT,
-                quote_column(primary_full_name),
-                JoinSQL(
-                    SQL_UNION_ALL,
-                    (
-                        sql_query(
-                            {"from": self.container.full_name + ApiName(shard.table_id)}
-                        )
-                        for _, shard, _ in matched
+            for g, merge_chunk in jx.chunk(matched, MAX_MERGE):
+                command = ConcatSQL(
+                    SQL_INSERT,
+                    quote_column(primary_full_name),
+                    JoinSQL(
+                        SQL_UNION_ALL,
+                        (
+                            sql_query(
+                                {
+                                    "from": self.container.full_name
+                                    + ApiName(shard.table_id)
+                                }
+                            )
+                            for _, shard, _ in merge_chunk
+                        ),
                     ),
-                ),
-            )
-            job = self.container.query_and_wait(command)
-            Log.note("job {{id}} state = {{state}}", id=job.job_id, state=job.state)
-
-            if job.errors:
-                Log.error(
-                    "\n{{sql}}\nDid not fill table:\n{{reason|json|indent}}",
-                    sql=command.sql,
-                    reason=job.errors,
                 )
-            for _, shard, _ in matched:
-                self.container.client.delete_table(shard)
+                job = self.container.query_and_wait(command)
+                Log.note("job {{id}} state = {{state}}", id=job.job_id, state=job.state)
+
+                if job.errors:
+                    Log.error(
+                        "\n{{sql}}\nDid not fill table:\n{{reason|json|indent}}",
+                        sql=command.sql,
+                        reason=job.errors,
+                    )
+                for _, shard, _ in merge_chunk:
+                    self.container.client.delete_table(shard)
 
         # ALL OTHER SCHEMAS MISMATCH
         for s, shard, _ in unmatched:
-            command = ConcatSQL(SQL_INSERT, quote_column(primary_full_name), s)
-            job = self.container.query_and_wait(command)
-            Log.note("job {{id}} state = {{state}}", id=job.job_id, state=job.state)
-
-            if job.errors:
-                Log.error(
-                    "\n{{sql}}\nDid not fill table:\n{{reason|json|indent}}",
-                    sql=command.sql,
-                    reason=job.errors,
+            try:
+                command = ConcatSQL(SQL_INSERT, quote_column(primary_full_name), s)
+                job = self.container.query_and_wait(command)
+                Log.note(
+                    "from {{shard}}, job {{id}}, state {{state}}",
+                    id=job.job_id,
+                    shard=shard.table_id,
+                    state=job.state,
                 )
 
-            self.container.client.delete_table(shard)
+                if job.errors:
+                    if all(" does not have a schema." in m for m in wrap(job.errors).message):
+                        pass  #NOTHING TO DO
+                    else:
+                        Log.error(
+                            "\n{{sql}}\nDid not fill table:\n{{reason|json|indent}}",
+                            sql=command.sql,
+                            reason=job.errors,
+                        )
+
+                self.container.client.delete_table(shard)
+            except Exception as e:
+                Log.warning("failure to merge {{shard}}", shard=shard, cause=e)
 
         # REMOVE OLD VIEW
         view_full_name = self.container.full_name + api_name
@@ -521,7 +589,6 @@ class Table(Facts):
             )
         )
 
-
 def _extract_primary_shard_name(view_sql):
     # TODO: USE REAL PARSER
     e = view_sql.lower().find("from ")
@@ -529,18 +596,35 @@ def _extract_primary_shard_name(view_sql):
 
 
 def gen_select(total_flake, flake):
+    """
+    GENERATE SELECT CLAUSE
+    :param total_flake:
+    :param flake:
+    :return:
+    """
+
     def _gen_select(
-        jx_path, es_path, total_tops, total_flake, source_tops, source_flake
+        source_path,  # THE PATH TO THIS BRANCH
+        total_path,  # THE DATABASE PATH TO THIS BRANCH
+        total_tops,  # TOP-LEVEL FIELDS FOR DESTINATION
+        total_flake,  # FIELDS OF THIS BRANCH
+        source_tops,  # TOP-LEVEL FIELDS FOR SOURCE
+        source_flake,  # FIELDS OF THIS BRANCH
     ):
         if total_flake == source_flake and total_tops == source_tops:
-            if not jx_path:  # TOP LEVEL FIELDS
+            if not source_path:  # TOP LEVEL FIELDS
                 return [
                     quote_column(escape_name(k))
                     for k in total_flake.keys()
                     if not is_text(total_tops[k])
                 ]
+            elif total_tops:
+                Log.error("top level fields are not expected at this point (?nested?)")
             else:
-                Log.error("should not happen")
+                es_path = sum(map(escape_name, source_path), ApiName())
+                return [
+                    quote_column(es_path + escape_name(k)) for k in total_flake.keys()
+                ]
 
         if NESTED_TYPE in total_flake:
             k = NESTED_TYPE
@@ -556,14 +640,19 @@ def gen_select(total_flake, flake):
                         JoinSQL(
                             ConcatSQL(SQL_COMMA, SQL_CR),
                             _gen_select(
-                                jx_path, es_path + REPEATED, Null, t, Null, source_flake
+                                source_path,
+                                total_path + REPEATED,
+                                Null,
+                                t,
+                                Null,
+                                source_flake,
                             ),
                         ),
                     )
                 ]
             else:
-                row_name = "row" + text(len(jx_path))
-                ord_name = "ordering" + text(len(jx_path))
+                row_name = "row" + text(len(source_path))
+                ord_name = "ordering" + text(len(source_path))
                 inner = [
                     ConcatSQL(
                         SQL_SELECT_AS_STRUCT,
@@ -574,7 +663,7 @@ def gen_select(total_flake, flake):
                             ),
                         ),
                         SQL_FROM,
-                        sql_call("UNNEST", quote_column(es_path + escape_name(k))),
+                        sql_call("UNNEST", quote_column(total_path + escape_name(k))),
                         SQL_AS,
                         SQL(row_name),
                         SQL(" WITH OFFSET AS "),
@@ -597,7 +686,7 @@ def gen_select(total_flake, flake):
             elif t == v and k_total_tops == k_tops:
                 selection.append(
                     ConcatSQL(
-                        quote_column(es_path + escape_name(k)),
+                        quote_column(total_path + escape_name(k)),
                         SQL_AS,
                         quote_column(escape_name(k)),
                     )
@@ -605,8 +694,8 @@ def gen_select(total_flake, flake):
             elif is_data(t):
                 if not v:
                     selects = _gen_select(
-                        jx_path + [k],
-                        es_path + escape_name(k),
+                        source_path + [k],
+                        total_path + escape_name(k),
                         k_total_tops,
                         t,
                         source_tops,
@@ -614,8 +703,8 @@ def gen_select(total_flake, flake):
                     )
                 elif is_data(v):
                     selects = _gen_select(
-                        jx_path + [k],
-                        es_path + escape_name(k),
+                        source_path + [k],
+                        total_path + escape_name(k),
                         k_total_tops,
                         t,
                         source_tops,
@@ -624,7 +713,7 @@ def gen_select(total_flake, flake):
                 else:
                     raise Log.error(
                         "Datatype mismatch on {{field}}: Can not merge {{type}} into {{main}}",
-                        field=join_field(jx_path + [k]),
+                        field=join_field(source_path + [k]),
                         type=v,
                         main=t,
                     )
@@ -644,7 +733,7 @@ def gen_select(total_flake, flake):
                 elif v == t:
                     selection.append(
                         ConcatSQL(
-                            quote_column(es_path + escape_name(k)),
+                            quote_column(total_path + escape_name(k)),
                             SQL_AS,
                             quote_column(escape_name(k)),
                         )
@@ -653,7 +742,7 @@ def gen_select(total_flake, flake):
                     if v:
                         Log.note(
                             "Datatype mismatch on {{field}}: Can not merge {{type}} into {{main}}",
-                            field=join_field(jx_path + [k]),
+                            field=join_field(source_path + [k]),
                             type=v,
                             main=t,
                         )
@@ -696,3 +785,8 @@ def gen_select(total_flake, flake):
         tops.append(ConcatSQL(source, SQL_AS, quote_column(ApiName(name))))
 
     return tops + output
+
+
+DEFAULT_SCHEMA = {"_id": INTEGER}
+DEFAULT_TYPED_SCHEMA = {"_id": {INTEGER_TYPE: INTEGER}}
+

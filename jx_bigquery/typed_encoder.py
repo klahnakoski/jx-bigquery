@@ -1,9 +1,19 @@
+# encoding: utf-8
+#
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at http:# mozilla.org/MPL/2.0/.
+#
+# Contact: Kyle Lahnakoski (kyle@lahnakoski.com)
+#
+from __future__ import absolute_import, division, unicode_literals
 import string
 
-from jx_bigquery.sql import escape_name, TIMESTAMP_FORMAT
+from jx_bigquery.sql import escape_name, TIMESTAMP_FORMAT, unescape_name, ApiName
 from jx_python import jx
-from mo_dots import is_many, is_data, wrap, split_field, join_field
-from mo_future import is_text, text
+from mo_dots import is_many, is_data, wrap, split_field, join_field, Data, SLOT, FlatList, NullType, DataObject
+from mo_future import is_text, text, generator_types
 from mo_json import (
     BOOLEAN,
     NUMBER,
@@ -12,7 +22,9 @@ from mo_json import (
     NESTED,
     python_type_to_json_type,
     INTEGER,
-    INTERVAL, TIME)
+    INTERVAL,
+    TIME,
+)
 from mo_logs import Log
 from mo_times.dates import parse
 
@@ -111,7 +123,11 @@ def _typed_encode(value, schema):
                     v = parse(v).format(TIMESTAMP_FORMAT)
                     return {text(escape_name(TIME_TYPE)): v}, update, False
                 except Exception as e:
-                    Log.warning("Failed attempt to convert {{value}} to TIMESTAMP string", value=v, cause=e)
+                    Log.warning(
+                        "Failed attempt to convert {{value}} to TIMESTAMP string",
+                        value=v,
+                        cause=e,
+                    )
 
             schema[inserter_type] = json_type
             update = {inserter_type: json_type}
@@ -127,6 +143,58 @@ def schema_type(value):
     else:
         v = value
     return v, json_type_to_inserter_type[jt], jt
+
+
+def untyped(value):
+    """
+    REMOVE TYPING AND ESCAPING FROM THE value
+    """
+    return _untype_value(value)
+
+
+def _untype_list(value):
+    if any(is_data(v) for v in value):
+        # MAY BE MORE TYPED OBJECTS IN THIS LIST
+        output = [_untype_value(v) for v in value]
+    else:
+        # LIST OF PRIMITIVE VALUES
+        output = value
+
+    if len(output) == 0:
+        return None
+    elif len(output) == 1:
+        return output[0]
+    else:
+        return output
+
+
+def _untype_dict(value):
+    output = {}
+
+    for k, v in value.items():
+        k = unescape_name(ApiName(k))
+        if k == NESTED_TYPE:
+            return _untype_list(v)
+        elif k in typed_to_bq_type:
+            return _untype_value(v)
+        else:
+            new_v = _untype_value(v)
+            if new_v is not None:
+                output[k] = new_v
+    return output
+
+
+_get = object.__getattribute__
+
+
+def _untype_value(value):
+    _type = value.__class__
+    if _type is dict:
+        return _untype_dict(value)
+    elif _type is list:
+        return _untype_list(value)
+    else:
+        return value
 
 
 json_type_to_bq_type = {
@@ -175,6 +243,7 @@ json_type_to_inserter_type = {
 typed_to_bq_type = {
     BOOLEAN_TYPE: {"field_type": "BOOLEAN", "mode": "NULLABLE"},
     NUMBER_TYPE: {"field_type": "FLOAT64", "mode": "NULLABLE"},
+    INTEGER_TYPE: {"field_type": "INT64", "mode": "NULLABLE"},
     TIME_TYPE: {"field_type": "TIMESTAMP", "mode": "NULLABLE"},
     STRING_TYPE: {"field_type": "STRING", "mode": "NULLABLE"},
     NESTED_TYPE: {"field_type": "RECORD", "mode": "REPEATED"},
