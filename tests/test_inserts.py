@@ -108,6 +108,42 @@ class TestInerts(tests.TestBigQuery):
 
         self.assertEqual(result, expected)
 
+    def test_inject_arrays(self):
+        dataset = Dataset("testing", kwargs=tests.config.destination)
+        table = dataset.create_or_replace_table(table=table_name(), sharded=True)
+
+        table.add({"a": 1, "b": {"c": {"e": 42}}})
+        table.add({"a": 3, "b": [{"c": {"e": 2}}, {"c": {"e": 3}}]})
+
+        table.merge_shards()
+        result = jx.sort(table.all_records(), "a")
+
+        expected = [
+            {"a": 1, "b": {"c": {"e": 42}}},
+            {"a": 3, "b": [{"c": {"e": 2}}, {"c": {"e": 3}}]},
+        ]
+
+        self.assertEqual(result, expected)
+
+    def test_has_arrays(self):
+        dataset = Dataset("testing", kwargs=tests.config.destination)
+        table = dataset.create_or_replace_table(table=table_name(), sharded=True)
+
+        table.add({"a": 1, "b": {"c": {"e": 42}}})
+        table.add({"a": 3, "b": [{"c": {"e": 2}}, {"c": {"e": 3}, "f":42}]})
+
+        table.merge_shards()
+        result = jx.sort(table.all_records(), "a")
+
+        expected = [
+            {"a": 1, "b": {"c": {"e": 42}}},
+            {"a": 3, "b": [{"c": {"e": 2}}, {"c": {"e": 3}}]},
+        ]
+
+        self.assertEqual(result, expected)
+
+
+
     def test_encoding_on_deep_arrays(self):
         dataset = Dataset("testing", kwargs=tests.config.destination)
         table = dataset.create_or_replace_table(table=table_name(), sharded=True)
