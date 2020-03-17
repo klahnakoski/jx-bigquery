@@ -72,6 +72,8 @@ def _typed_encode(value, schema):
     nested - True IF NESTING IS REQUIRED (CONSIDERED SERIOUS SCHEMA CHANGE)
     """
     if is_many(value):
+        if len(value) == 0:
+            return None, None, False
         output = []
         update = {}
         nest_added = False
@@ -104,7 +106,8 @@ def _typed_encode(value, schema):
             if not child_schema:
                 child_schema = schema[k] = {}
             result, more_update, n = _typed_encode(v, child_schema)
-            output[text(escape_name(k))] = result
+            if result != None:
+                output[text(escape_name(k))] = result
             set_default(update, {k: more_update})
             nest_added |= n
         return output, update or None, nest_added
@@ -118,7 +121,7 @@ def _typed_encode(value, schema):
             )
         return v, None, False
     elif value is None:
-        return {text(escape_name(t)): None for t, child_schema in schema.items()}, None, False
+        return {text(escape_name(t)): None for t, child_schema in schema.items()} or None, None, False
     else:
         v, inserter_type, json_type = schema_type(value)
         child_schema = schema.get(inserter_type)

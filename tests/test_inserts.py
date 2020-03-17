@@ -143,6 +143,37 @@ class TestInerts(tests.TestBigQuery):
         self.assertEqual(result, expected)
 
 
+    def test_zero_array(self):
+        dataset = Dataset("testing", kwargs=tests.config.destination)
+        table = dataset.create_or_replace_table(table=table_name(), sharded=True)
+
+        table.add({"a": 3, "b": []})
+
+        table.merge_shards()
+        result = jx.sort(table.all_records(), "a")
+
+        expected = [
+            {"a": 3, "b": NULL},
+        ]
+
+        self.assertEqual(result, expected)
+
+    def test_null(self):
+        dataset = Dataset("testing", kwargs=tests.config.destination)
+        table = dataset.create_or_replace_table(table=table_name(), sharded=True)
+
+        table.add({"a": 3, "b": None})
+
+        table.merge_shards()
+        result = jx.sort(table.all_records(), "a")
+
+        expected = [
+            {"a": 3, "b": NULL},
+        ]
+
+        self.assertEqual(result, expected)
+
+
 
     def test_encoding_on_deep_arrays(self):
         dataset = Dataset("testing", kwargs=tests.config.destination)
