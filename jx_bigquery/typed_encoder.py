@@ -9,7 +9,9 @@
 #
 from __future__ import absolute_import, division, unicode_literals
 import string
+from enum import EnumMeta
 
+import mo_math
 from jx_bigquery.sql import escape_name, TIMESTAMP_FORMAT, unescape_name, ApiName
 from jx_python import jx
 from mo_dots import is_many, is_data, wrap, split_field, join_field, Data, SLOT, FlatList, NullType, DataObject, \
@@ -145,11 +147,18 @@ def _typed_encode(value, schema):
 
 
 def schema_type(value):
-    jt = python_type_to_json_type[value.__class__]
+    clazz = value.__class__
+    if clazz.__class__ == EnumMeta:
+        return value.name, json_type_to_inserter_type[STRING], STRING
+
+    jt = python_type_to_json_type[clazz]
     if jt == TIME:
         v = parse(value).format(TIMESTAMP_FORMAT)
     elif jt == NUMBER:
-        v = float(value)
+        if mo_math.is_finite(value):
+            v = float(value)
+        else:
+            v = None
     else:
         v = value
     return v, json_type_to_inserter_type[jt], jt

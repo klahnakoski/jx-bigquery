@@ -9,16 +9,22 @@
 #
 from __future__ import absolute_import, division, unicode_literals
 
+import math
+from collections import OrderedDict
+from enum import Enum
+from unittest import skipIf
+
 from jx_base.expressions import NULL
 from jx_python import jx
-from mo_future import NEXT, text
+from mo_future import NEXT, text, PY2
+from mo_times import Date
 
 import tests
 from jx_bigquery.bigquery import Dataset
 
 
 def table_name():
-    i = 0;
+    i = 0
     while True:
         yield "table" + text(i)
         i = i + 1
@@ -39,12 +45,7 @@ class TestInerts(tests.TestBigQuery):
         table.merge_shards()
         result = jx.sort(table.all_records(), ".")
 
-        expected = [
-            42,
-            "test",
-            NULL,
-            NULL
-        ]
+        expected = [42, "test", NULL, NULL]
 
         self.assertEqual(result, expected)
 
@@ -130,7 +131,7 @@ class TestInerts(tests.TestBigQuery):
         table = dataset.create_or_replace_table(table=table_name(), sharded=True)
 
         table.add({"a": 1, "b": {"c": {"e": 42}}})
-        table.add({"a": 3, "b": [{"c": {"e": 2}}, {"c": {"e": 3}, "f":42}]})
+        table.add({"a": 3, "b": [{"c": {"e": 2}}, {"c": {"e": 3}, "f": 42}]})
 
         table.merge_shards()
         result = jx.sort(table.all_records(), "a")
@@ -141,7 +142,6 @@ class TestInerts(tests.TestBigQuery):
         ]
 
         self.assertEqual(result, expected)
-
 
     def test_zero_array(self):
         dataset = Dataset("testing", kwargs=tests.config.destination)
@@ -173,7 +173,41 @@ class TestInerts(tests.TestBigQuery):
 
         self.assertEqual(result, expected)
 
+    def test_infinity(self):
+        dataset = Dataset("testing", kwargs=tests.config.destination)
+        table = dataset.create_or_replace_table(table=table_name(), sharded=True)
 
+        table.add({"a": 3, "b": -math.inf})
+
+        table.merge_shards()
+        result = jx.sort(table.all_records(), "a")
+
+        expected = [
+            {"a": 3, "b": NULL},
+        ]
+
+        self.assertEqual(result, expected)
+
+    @skipIf(PY2, "no enums for python 2")
+    def test_enum(self):
+        class Status(Enum):
+            PASS = 0
+            FAIL = 1
+            INTERMITTENT = 2
+
+        dataset = Dataset("testing", kwargs=tests.config.destination)
+        table = dataset.create_or_replace_table(table=table_name(), sharded=True)
+
+        table.add({"a": Status.PASS})
+
+        table.merge_shards()
+        result = jx.sort(table.all_records(), "a")
+
+        expected = [
+            {"a": "PASS"},
+        ]
+
+        self.assertEqual(result, expected)
 
     def test_encoding_on_deep_arrays(self):
         dataset = Dataset("testing", kwargs=tests.config.destination)
@@ -193,3 +227,30 @@ class TestInerts(tests.TestBigQuery):
 
         self.assertEqual(result, expected)
 
+    def test_top_level_field_order(self):
+        dataset = Dataset("testing", kwargs=tests.config.destination)
+
+        table = dataset.create_or_replace_table(
+            table=table_name(),
+            sharded=True,
+            schema={"push": {"id": {"_i_": "integer"}}, "etl": {"timestamp": {"_t_": "time"}}},
+            # REVERSE ALPHABTICAL ORDER
+            top_level_fields=OrderedDict([
+                ("push", {"id": "_push_id"}),
+                ("etl", {"timestamp": "_etl_timestamp"})
+            ]),
+        )
+        today = Date.today()
+        now = Date.now()
+        table.add({"push": {"id": 1}, "etl": {"timestamp": today}, "a": 1})
+        table.add({"push": {"id": 2}, "etl": {"timestamp": now}, "b": 2})
+
+        table.merge_shards()
+        result = jx.sort(table.all_records(), "push.id")
+
+        expected = [
+            {"push": {"id": 1}, "etl": {"timestamp": today}, "a": 1},
+            {"push": {"id": 2}, "etl": {"timestamp": now}, "b": 2},
+        ]
+
+        self.assertAlmostEqual(result, expected, places=10)
