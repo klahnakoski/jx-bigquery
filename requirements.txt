@@ -2,7 +2,7 @@ mo-future
 mo-dots
 mo-kwargs
 mo-logs
-mo-times
+mo-times>=3.56.20084
 jx-python
 mo-json
 mo-times
