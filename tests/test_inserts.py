@@ -23,7 +23,7 @@ import tests
 from jx_bigquery.bigquery import Dataset
 
 
-class TestInerts(tests.TestBigQuery):
+class TestInserts(tests.TestBigQuery):
     def test_primitives(self):
         dataset = Dataset("testing", kwargs=tests.config.destination)
         table = dataset.create_or_replace_table(table=tests.table_name(), sharded=True)
