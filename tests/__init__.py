@@ -1,4 +1,3 @@
-
 # encoding: utf-8
 #
 #
@@ -10,27 +9,44 @@
 #
 from __future__ import absolute_import, division, unicode_literals
 
+from mo_future import NEXT, text
 from mo_logs import constants, startup, Log
 from mo_testing.fuzzytestcase import FuzzyTestCase
+from mo_times import Timer
 
 from jx_bigquery import bigquery
+from jx_bigquery.bigquery import Dataset
 
-config = None
+TESTING_DATASET = "testing"
+
+
+def table_name():
+    i = 0
+    while True:
+        yield "table" + text(i)
+        i = i + 1
+
+
+table_name = NEXT(table_name())
+
+
+def delete_dataset():
+    client = bigquery.connect(config.destination.account_info)
+    existing = bigquery.find_dataset(TESTING_DATASET, client)
+    if existing:
+        with Timer("delete dataset {{dataset}}", {"dataset": TESTING_DATASET}):
+            client.delete_dataset(existing, delete_contents=True)
 
 
 class TestBigQuery(FuzzyTestCase):
-
     @classmethod
     def setUpClass(cls):
-        global config
         bigquery.DEBUG = True
-        config = startup.read_settings(filename="tests/config.json")
-        constants.set(config.constants)
-        Log.start(config.debug)
 
 
+config = startup.read_settings(filename="tests/config.json")
+constants.set(config.constants)
+Log.start(config.debug)
 
-
-
-
-
+delete_dataset()
+TestBigQuery.dataset = Dataset(TESTING_DATASET, kwargs=config.destination)

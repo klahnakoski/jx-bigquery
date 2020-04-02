@@ -5,7 +5,7 @@ from setuptools import setup
 setup(
     author='Kyle Lahnakoski',
     author_email='kyle@lahnakoski.com',
-    classifiers=["Development Status :: 4 - Beta","Topic :: Software Development :: Libraries","Topic :: Software Development :: Libraries :: Python Modules","License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)","Programming Language :: Python :: 2.7","Programming Language :: Python :: 3.6","Programming Language :: Python :: 3.7","Programming Language :: Python :: 3.8"],
+    classifiers=["Development Status :: 4 - Beta","Topic :: Software Development :: Libraries","Topic :: Software Development :: Libraries :: Python Modules","License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)","Programming Language :: Python :: 3.6","Programming Language :: Python :: 3.7","Programming Language :: Python :: 3.8"],
     description='jx-bigquery - JSON Expressions for BigQuery',
     include_package_data=True,
     install_requires=["google-cloud-bigquery","jx-python>=3.57.20089","jx-python>=3.57.20089","mo-dots>=3.53.20059","mo-future>=3.51.20059","mo-json>=3.57.20089","mo-kwargs>=3.54.20059","mo-logs>=3.57.20089","mo-sql>=3.55.20074","mo-times>=3.57.20089","mo-times>=3.57.20089"],
@@ -15,5 +15,5 @@ setup(
     name='jx-bigquery',
     packages=["jx_bigquery/expressions","jx_bigquery"],
     url='https://github.com/klahnakoski/jx-bigquery',
-    version='3.59.20089'
+    version='3.61.20093'
 )
