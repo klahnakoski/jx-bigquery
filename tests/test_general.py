@@ -13,14 +13,14 @@ from jx_python import jx
 from mo_future import text
 
 import tests
-from jx_bigquery.bigquery import Dataset
 from jx_bigquery.sql import ApiName
 
 
 class TestGeneral(tests.TestBigQuery):
     def test_fix_bad_view(self):
+        dataset = self.dataset
+
         # make sharded table
-        dataset = Dataset("testing", kwargs=tests.config.destination)
         table = dataset.create_or_replace_table(table=tests.table_name(), sharded=True)
 
         # drop table

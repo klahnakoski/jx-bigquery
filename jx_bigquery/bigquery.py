@@ -68,6 +68,33 @@ MAX_MERGE = 10  # MAXIMUM NUMBER OF TABLES TO MERGE AT ONCE
 SUFFIX_PATTERN = re.compile(r"__\w{20}")
 
 
+def connect(account_info):
+    creds = service_account.Credentials.from_service_account_info(info=account_info)
+    client = bigquery.Client(
+        project=account_info.project_id, credentials=creds
+    )
+    return client
+
+
+def create_dataset(project_id, dataset, client):
+    full_name = ApiName(project_id) + escape_name(dataset)
+
+    _dataset = bigquery.Dataset(text(full_name))
+    _dataset.location = "US"
+    return client.create_dataset(_dataset)
+
+
+def find_dataset(dataset, client):
+    esc_name = escape_name(dataset)
+
+    datasets = list(client.list_datasets())
+    for _dataset in datasets:
+        if ApiName(_dataset.dataset_id) == esc_name:
+            return _dataset.reference
+
+
+
+
 class Dataset(Container):
     """
     REPRESENT A BIGQUERY DATASET; aka A CONTAINER FOR TABLES; aka A DATABASE
@@ -75,23 +102,14 @@ class Dataset(Container):
 
     @override
     def __init__(self, dataset, account_info, kwargs):
-        creds = service_account.Credentials.from_service_account_info(info=account_info)
-        self.client = bigquery.Client(
-            project=account_info.project_id, credentials=creds
-        )
+        self.client = connect(account_info)
         self.short_name = dataset
         esc_name = escape_name(dataset)
         self.full_name = ApiName(account_info.project_id) + esc_name
 
-        datasets = list(self.client.list_datasets())
-        for _dataset in datasets:
-            if ApiName(_dataset.dataset_id) == esc_name:
-                self.dataset = _dataset.reference
-                break
-        else:
-            _dataset = bigquery.Dataset(text(self.full_name))
-            _dataset.location = "US"
-            self.dataset = self.client.create_dataset(_dataset)
+        self.dataset = find_dataset(dataset, self.client)
+        if not self.dataset:
+            self.dataset = create_dataset(account_info.project_id, dataset, self.client)
 
     @override
     def get_or_create_table(

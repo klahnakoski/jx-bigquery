@@ -1,4 +1,3 @@
-
 # encoding: utf-8
 #
 #
@@ -10,11 +9,18 @@
 #
 from __future__ import absolute_import, division, unicode_literals
 
+from google.cloud.bigquery import Client
+from google.oauth2 import service_account
 from mo_future import NEXT, text
 from mo_logs import constants, startup, Log
 from mo_testing.fuzzytestcase import FuzzyTestCase
+from mo_times import Timer
 
 from jx_bigquery import bigquery
+from jx_bigquery.bigquery import Dataset
+from jx_bigquery.sql import escape_name, ApiName
+
+TESTING_DATASET = "testing"
 
 config = None
 
@@ -29,8 +35,15 @@ def table_name():
 table_name = NEXT(table_name())
 
 
-class TestBigQuery(FuzzyTestCase):
+def delete_dataset():
+    with Timer("delete dataset {{dataset}}", {"dataset": TESTING_DATASET}):
+        client = bigquery.connect(config.destination.account_info)
+        existing = bigquery.find_dataset(TESTING_DATASET, client)
+        if existing:
+            client.delete_dataset(existing, delete_contents=True)
 
+
+class TestBigQuery(FuzzyTestCase):
     @classmethod
     def setUpClass(cls):
         global config
@@ -39,9 +52,6 @@ class TestBigQuery(FuzzyTestCase):
         constants.set(config.constants)
         Log.start(config.debug)
 
-
-
-
-
-
+        delete_dataset()
+        cls.dataset = Dataset(TESTING_DATASET, kwargs=config.destination)
 

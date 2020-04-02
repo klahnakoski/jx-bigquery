@@ -25,7 +25,7 @@ from jx_bigquery.bigquery import Dataset
 
 class TestInserts(tests.TestBigQuery):
     def test_primitives(self):
-        dataset = Dataset("testing", kwargs=tests.config.destination)
+        dataset = self.dataset
         table = dataset.create_or_replace_table(table=tests.table_name(), sharded=True)
         table.add(42)
         table.add(None)
@@ -40,7 +40,7 @@ class TestInserts(tests.TestBigQuery):
         self.assertEqual(result, expected)
 
     def test_array(self):
-        dataset = Dataset("testing", kwargs=tests.config.destination)
+        dataset = self.dataset
         table = dataset.create_or_replace_table(table=tests.table_name(), sharded=True)
         table.add({"b": [1, 2, 3, 4, 5, 6]})
         table.merge_shards()
@@ -50,7 +50,7 @@ class TestInserts(tests.TestBigQuery):
         self.assertEqual(result, expected)
 
     def test_one_then_many_then_merge(self):
-        dataset = Dataset("testing", kwargs=tests.config.destination)
+        dataset = self.dataset
         table = dataset.create_or_replace_table(table=tests.table_name(), sharded=True)
         table.add({"a": 1, "b": {"c": 1, "d": 1}})
         table.add({"a": 2, "b": [{"c": 1, "d": 1}, {"c": 2, "d": 2}]})
@@ -66,7 +66,7 @@ class TestInserts(tests.TestBigQuery):
         self.assertEqual(result, expected)
 
     def test_one_then_deep_arrays1(self):
-        dataset = Dataset("testing", kwargs=tests.config.destination)
+        dataset = self.dataset
         table = dataset.create_or_replace_table(table=tests.table_name(), sharded=True)
         table.add({"a": 1, "b": {"c": [{"e": "e"}, {"e": 1}]}})
         table.add({"a": 2, "b": {"c": 1}})
@@ -82,7 +82,7 @@ class TestInserts(tests.TestBigQuery):
         self.assertEqual(result, expected)
 
     def test_one_then_deep_arrays2(self):
-        dataset = Dataset("testing", kwargs=tests.config.destination)
+        dataset = self.dataset
         table = dataset.create_or_replace_table(table=tests.table_name(), sharded=True)
         table.add({"a": 1, "b": {"c": [{"e": "e"}, {"e": 1}]}})
         table.add({"a": 2, "b": {"c": 1}})
@@ -100,7 +100,7 @@ class TestInserts(tests.TestBigQuery):
         self.assertEqual(result, expected)
 
     def test_inject_arrays(self):
-        dataset = Dataset("testing", kwargs=tests.config.destination)
+        dataset = self.dataset
         table = dataset.create_or_replace_table(table=tests.table_name(), sharded=True)
 
         table.add({"a": 1, "b": {"c": {"e": 42}}})
@@ -117,7 +117,7 @@ class TestInserts(tests.TestBigQuery):
         self.assertEqual(result, expected)
 
     def test_has_arrays(self):
-        dataset = Dataset("testing", kwargs=tests.config.destination)
+        dataset = self.dataset
         table = dataset.create_or_replace_table(table=tests.table_name(), sharded=True)
 
         table.add({"a": 1, "b": {"c": {"e": 42}}})
@@ -134,7 +134,7 @@ class TestInserts(tests.TestBigQuery):
         self.assertEqual(result, expected)
 
     def test_zero_array(self):
-        dataset = Dataset("testing", kwargs=tests.config.destination)
+        dataset = self.dataset
         table = dataset.create_or_replace_table(table=tests.table_name(), sharded=True)
 
         table.add({"a": 3, "b": []})
@@ -149,7 +149,7 @@ class TestInserts(tests.TestBigQuery):
         self.assertEqual(result, expected)
 
     def test_null(self):
-        dataset = Dataset("testing", kwargs=tests.config.destination)
+        dataset = self.dataset
         table = dataset.create_or_replace_table(table=tests.table_name(), sharded=True)
 
         table.add({"a": 3, "b": None})
@@ -164,7 +164,7 @@ class TestInserts(tests.TestBigQuery):
         self.assertEqual(result, expected)
 
     def test_infinity(self):
-        dataset = Dataset("testing", kwargs=tests.config.destination)
+        dataset = self.dataset
         table = dataset.create_or_replace_table(table=tests.table_name(), sharded=True)
 
         table.add({"a": 3, "b": -math.inf})
@@ -185,7 +185,7 @@ class TestInserts(tests.TestBigQuery):
             FAIL = 1
             INTERMITTENT = 2
 
-        dataset = Dataset("testing", kwargs=tests.config.destination)
+        dataset = self.dataset
         table = dataset.create_or_replace_table(table=tests.table_name(), sharded=True)
 
         table.add({"a": Status.PASS})
@@ -200,7 +200,7 @@ class TestInserts(tests.TestBigQuery):
         self.assertEqual(result, expected)
 
     def test_encoding_on_deep_arrays(self):
-        dataset = Dataset("testing", kwargs=tests.config.destination)
+        dataset = self.dataset
         table = dataset.create_or_replace_table(table=tests.table_name(), sharded=True)
         table.add({"__a": 1, "__b": {"__c": [{"__e": "e"}, {"__e": 1}]}})
         table.add({"__a": 2, "__b": {"__c": 1}})
@@ -218,7 +218,7 @@ class TestInserts(tests.TestBigQuery):
         self.assertEqual(result, expected)
 
     def test_top_level_field_order(self):
-        dataset = Dataset("testing", kwargs=tests.config.destination)
+        dataset = self.dataset
 
         table = dataset.create_or_replace_table(
             table=tests.table_name(),
