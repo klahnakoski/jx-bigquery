@@ -70,9 +70,7 @@ SUFFIX_PATTERN = re.compile(r"__\w{20}")
 
 def connect(account_info):
     creds = service_account.Credentials.from_service_account_info(info=account_info)
-    client = bigquery.Client(
-        project=account_info.project_id, credentials=creds
-    )
+    client = bigquery.Client(project=account_info.project_id, credentials=creds)
     return client
 
 
@@ -91,8 +89,6 @@ def find_dataset(dataset, client):
     for _dataset in datasets:
         if ApiName(_dataset.dataset_id) == esc_name:
             return _dataset.reference
-
-
 
 
 class Dataset(Container):
