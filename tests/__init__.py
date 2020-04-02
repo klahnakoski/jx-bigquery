@@ -10,12 +10,23 @@
 #
 from __future__ import absolute_import, division, unicode_literals
 
+from mo_future import NEXT, text
 from mo_logs import constants, startup, Log
 from mo_testing.fuzzytestcase import FuzzyTestCase
 
 from jx_bigquery import bigquery
 
 config = None
+
+
+def table_name():
+    i = 0
+    while True:
+        yield "table" + text(i)
+        i = i + 1
+
+
+table_name = NEXT(table_name())
 
 
 class TestBigQuery(FuzzyTestCase):
