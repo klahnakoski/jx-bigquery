@@ -13,8 +13,8 @@
     "description": "jx-bigquery - JSON Expressions for BigQuery",
     "include_package_data": true,
     "install_requires": [
-        "google-cloud-bigquery", "jx-python>=3.57.20089", "jx-python>=3.57.20089",
-          "mo-dots>=3.53.20059", "mo-future>=3.51.20059",   "mo-json>=3.57.20089",
+        "google-cloud-bigquery", "jx-python>=3.62.20101", "jx-python>=3.62.20101",
+          "mo-dots>=3.62.20101", "mo-future>=3.51.20059",   "mo-json>=3.57.20089",
         "mo-kwargs>=3.54.20059",   "mo-logs>=3.57.20089",    "mo-sql>=3.55.20074",
          "mo-times>=3.57.20089",  "mo-times>=3.57.20089"
     ],
@@ -176,5 +176,5 @@
     "name": "jx-bigquery",
     "packages": ["jx_bigquery/expressions", "jx_bigquery"],
     "url": "https://github.com/klahnakoski/jx-bigquery",
-    "version": "3.61.20093"
+    "version": "3.62.20101"
 }
