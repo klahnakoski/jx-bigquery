@@ -13,10 +13,10 @@
     "description": "jx-bigquery - JSON Expressions for BigQuery",
     "include_package_data": true,
     "install_requires": [
-        "google-cloud-bigquery", "jx-python>=3.62.20101", "jx-python>=3.62.20101",
-          "mo-dots>=3.62.20101", "mo-future>=3.51.20059",   "mo-json>=3.57.20089",
-        "mo-kwargs>=3.54.20059",   "mo-logs>=3.57.20089",    "mo-sql>=3.55.20074",
-         "mo-times>=3.57.20089",  "mo-times>=3.57.20089"
+        "google-cloud-bigquery", "jx-python>=3.78.20194", "jx-python>=3.78.20194",
+          "mo-dots>=3.78.20194", "mo-future>=3.71.20168",   "mo-json>=3.78.20194",
+        "mo-kwargs>=3.77.20190",   "mo-logs>=3.78.20194",    "mo-sql>=3.77.20190",
+         "mo-times>=3.76.20190",  "mo-times>=3.76.20190"
     ],
     "license": "MPL 2.0",
     "long_description": {
@@ -28,7 +28,7 @@
             "",
             "## Status",
             "",
-            "March 2020 - Active but incomplete:  Can insert [tidy](https://en.wikipedia.org/wiki/Tidy_data) JSON documents into BigQuery while managing the schema.  Queries are not supported yet.",
+            "June 2020 - Can insert JSON documents into BigQuery while managing the schema.  Queries are not supported yet.",
             "",
             "## Overview",
             "",
@@ -47,7 +47,7 @@
             "* `table` - Any name you wish to give to this table series",
             "* `top_level_fields` - BigQuery demands that control columns are top-level.  Define them here.",
             "* `partition` - ",
-            "  * `field` - The dot-delimited field used to partition the tables (must be time datatype)",
+            "  * `field` - The dot-delimited field used to partition the tables (must be `time` datatype)",
             "  * `expire` - When BigQuery will automatically drop your data. ",
             "* `id` - The identification of documents ",
             "  * `field` - the set of columns to uniquely identify this document",
@@ -176,5 +176,5 @@
     "name": "jx-bigquery",
     "packages": ["jx_bigquery/expressions", "jx_bigquery"],
     "url": "https://github.com/klahnakoski/jx-bigquery",
-    "version": "3.62.20101"
+    "version": "3.78.20194"
 }
