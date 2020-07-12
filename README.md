@@ -5,7 +5,7 @@ JSON Expressions for BigQuery
 
 ## Status
 
-March 2020 - Active but incomplete:  Can insert [tidy](https://en.wikipedia.org/wiki/Tidy_data) JSON documents into BigQuery while managing the schema.  Queries are not supported yet.
+June 2020 - Can insert JSON documents into BigQuery while managing the schema.  Queries are not supported yet.
 
 ## Overview
 
@@ -24,7 +24,7 @@ The library is intended to manage multiple BigQuery tables to give the illusion 
 * `table` - Any name you wish to give to this table series
 * `top_level_fields` - BigQuery demands that control columns are top-level.  Define them here.
 * `partition` - 
-  * `field` - The dot-delimited field used to partition the tables (must be time datatype)
+  * `field` - The dot-delimited field used to partition the tables (must be `time` datatype)
   * `expire` - When BigQuery will automatically drop your data. 
 * `id` - The identification of documents 
   * `field` - the set of columns to uniquely identify this document
