@@ -14,9 +14,30 @@ from copy import copy
 
 from google.cloud import bigquery
 from google.oauth2 import service_account
-from jx_base import Container, Facts
+
+from jx_base import Container as BaseContainer, Facts as BaseFacts
+from jx_bigquery import snowflakes
+from jx_bigquery.snowflakes import Snowflake
+from jx_bigquery.sql import (
+    quote_column,
+    ALLOWED,
+    sql_call,
+    sql_alias,
+    escape_name,
+    ApiName,
+    sql_query,
+)
+from jx_bigquery.typed_encoder import (
+    NESTED_TYPE,
+    typed_encode,
+    REPEATED,
+    json_type_to_bq_type,
+    INTEGER_TYPE,
+    untyped,
+)
 from jx_python import jx
-from mo_dots import listwrap, unwrap, join_field, Null, is_data, Data, wrap, set_default
+from mo_dots import listwrap, unwrap, join_field, Null, is_data, Data, wrap, set_default, dict_to_data, leaves_to_data, \
+    from_data
 from mo_future import is_text, text, first
 from mo_json import INTEGER
 from mo_kwargs import override
@@ -38,29 +59,9 @@ from mo_sql import (
     SQL_DESC,
     SQL_UNION_ALL,
 )
-from mo_threads import Till
+from mo_threads import Till, Lock, Queue
 from mo_times import MINUTE, Timer
 from mo_times.dates import Date
-
-from jx_bigquery import snowflakes
-from jx_bigquery.snowflakes import Snowflake
-from jx_bigquery.sql import (
-    quote_column,
-    ALLOWED,
-    sql_call,
-    sql_alias,
-    escape_name,
-    ApiName,
-    sql_query,
-)
-from jx_bigquery.typed_encoder import (
-    NESTED_TYPE,
-    typed_encode,
-    REPEATED,
-    json_type_to_bq_type,
-    INTEGER_TYPE,
-    untyped,
-)
 
 DEBUG = False
 EXTEND_LIMIT = 2 * MINUTE  # EMIT ERROR IF ADDING RECORDS TO TABLE TOO OFTEN
@@ -91,7 +92,7 @@ def find_dataset(dataset, client):
             return _dataset.reference
 
 
-class Dataset(Container):
+class Dataset(BaseContainer):
     """
     REPRESENT A BIGQUERY DATASET; aka A CONTAINER FOR TABLES; aka A DATABASE
     """
@@ -126,7 +127,7 @@ class Dataset(Container):
             return Table(kwargs=kwargs, container=self)
         except Exception as e:
             e = Except.wrap(e)
-            if "Not found: Table" in e:
+            if not read_only and "Not found: Table" in e:
                 return self.create_table(kwargs)
             Log.error("could not get table {{table}}", table=table, cause=e)
 
@@ -264,7 +265,7 @@ class Dataset(Container):
         return job
 
 
-class Table(Facts):
+class Table(BaseFacts):
     @override
     def __init__(
         self,
@@ -346,15 +347,35 @@ class Table(Facts):
                 )
 
         self.last_extend = Date.now() - EXTEND_LIMIT
+        self.extend_locker = Lock()
+        self.extend_queue = Queue("wait for extend")
 
     def all_records(self):
         """
         MOSTLY FOR TESTING, RETURN ALL RECORDS IN TABLE
         :return:
         """
-        sql = sql_query({"from": self.full_name})
-        query_job = self.container.client.query(text(sql))
+        return self.query(sql_query({"from": self.full_name}))
 
+    def jx_query(self, jx_query):
+        docs = self.sql_query(sql_query(dict_to_data({"from": join_field(self.full_name.values)}) | jx_query, self.schema))
+        data = []
+        for d in docs:
+            u = untyped(from_data(leaves_to_data(d)))
+            data.append(u)
+
+        return Data(data=data, format='list')
+
+    @property
+    def schema(self):
+        return self._flake
+
+    def sql_query(self, sql):
+        """
+        :param sql: SQL QUERY
+        :return: GENERATOR OF DOCUMENTS as dict
+        """
+        query_job = self.container.query_and_wait(sql)
         # WE WILL REACH INTO THE _flake, SINCE THIS IS THE FIRST PLACE WE ARE ACTUALLY PULLING RECORDS OUT
         # TODO: WITH MORE CODE THIS LOGIC GOES ELSEWHERE
         _ = self._flake.columns  # ENSURE schema HAS BEEN PROCESSED
@@ -376,7 +397,10 @@ class Table(Facts):
                 # INSERT TOP LEVEL FIELDS
                 reach = wrap(output)
                 for k, p in top2deep.items():
-                    reach[p] = doc[k]
+                    try:
+                        reach[p] = doc.get(k)
+                    except Exception as cause:
+                        raise cause
                 yield untyped(output)
 
     @property
@@ -392,7 +416,14 @@ class Table(Facts):
         )
         self.shard = primary_shard.shard
 
-    def extend(self, rows):
+    def extend(self, docs):
+        self.extend_queue.extend(docs)
+        with self.extend_locker:
+            docs = self.extend_queue.pop_all()
+            if docs:
+                self._extend(docs)
+
+    def _extend(self, rows):
         if self.read_only:
             Log.error("not for writing")
         if len(rows) == 0:
@@ -675,9 +706,9 @@ def _extract_primary_shard_name(view_sql):
 def gen_select(total_flake, flake):
     """
     GENERATE SELECT CLAUSE
-    :param total_flake:
-    :param flake:
-    :return:
+    :param total_flake:  THE DESTINATION SCHEMA TO MATCH
+    :param flake:  THE SCHEMA SELECTING FROM
+    :return:  SQL
     """
 
     def _gen_select(
