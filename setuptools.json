@@ -16,7 +16,7 @@
         "google-cloud-bigquery", "jx-python>=3.78.20194", "jx-python>=3.78.20194",
           "mo-dots>=3.78.20194", "mo-future>=3.71.20168",   "mo-json>=3.80.20196",
         "mo-kwargs>=3.77.20190",   "mo-logs>=3.78.20194",    "mo-sql>=3.77.20190",
-         "mo-times>=3.76.20190",  "mo-times>=3.76.20190"
+         "mo-times>=3.76.20190"
     ],
     "license": "MPL 2.0",
     "long_description": {
@@ -176,5 +176,5 @@
     "name": "jx-bigquery",
     "packages": ["jx_bigquery/expressions", "jx_bigquery"],
     "url": "https://github.com/klahnakoski/jx-bigquery",
-    "version": "3.80.20196"
+    "version": "3.81.20196"
 }
