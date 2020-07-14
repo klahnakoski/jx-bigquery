@@ -355,10 +355,10 @@ class Table(BaseFacts):
         MOSTLY FOR TESTING, RETURN ALL RECORDS IN TABLE
         :return:
         """
-        return self.query(sql_query({"from": self.full_name}))
+        return self.sql_query(sql_query({"from": text(self.full_name)}, self.schema))
 
     def jx_query(self, jx_query):
-        docs = self.sql_query(sql_query(dict_to_data({"from": join_field(self.full_name.values)}) | jx_query, self.schema))
+        docs = self.sql_query(sql_query(dict_to_data({"from": text(self.full_name)}) | jx_query, self.schema))
         data = []
         for d in docs:
             u = untyped(from_data(leaves_to_data(d)))
@@ -601,11 +601,11 @@ class Table(BaseFacts):
                         (
                             sql_query(
                                 {
-                                    "from": self.container.full_name
-                                    + ApiName(shard.table_id)
-                                }
+                                    "from": text(self.container.full_name + ApiName(shard.table_id))
+                                },
+                                schema
                             )
-                            for _, shard, _ in merge_chunk
+                            for _, shard, schema in merge_chunk
                         ),
                     ),
                 )
