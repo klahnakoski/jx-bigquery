@@ -14,6 +14,7 @@ from copy import copy
 
 from google.cloud import bigquery
 from google.oauth2 import service_account
+from mo_math import ceiling
 
 from jx_base import Container as BaseContainer, Facts as BaseFacts
 from jx_bigquery import snowflakes
@@ -222,7 +223,7 @@ class Dataset(BaseContainer):
                 l.es_column for f in listwrap(cluster) for l in flake.leaves(f)
             ] or None
             self.client.create_table(_table)
-            Log.note("created table {{table}}", table=_table.table_id)
+            DEBUG and Log.note("created table {{table}}", table=_table.table_id)
 
         return Table(
             table=table,
@@ -420,8 +421,7 @@ class Table(BaseFacts):
         self.extend_queue.extend(docs)
         with self.extend_locker:
             docs = self.extend_queue.pop_all()
-            if docs:
-                self._extend(docs)
+            self._extend(docs)
 
     def _extend(self, rows):
         if self.read_only:
@@ -431,18 +431,18 @@ class Table(BaseFacts):
 
         try:
             update = {}
-            with Timer("encoding"):
+            with Timer("encoding", verbose=DEBUG):
                 while True:
-                    output = []
+                    typed_rows = []
                     for rownum, row in enumerate(rows):
-                        typed, more, add_nested = typed_encode(row, self.flake)
+                        typed_row, more, add_nested = typed_encode(row, self.flake)
                         set_default(update, more)
                         if add_nested:
                             # row HAS NEW NESTED COLUMN!
                             # GO OVER THE rows AGAIN SO "RECORD" GET MAPPED TO "REPEATED"
                             DEBUG and Log.note("New nested documnet found, retrying")
                             break
-                        output.append(typed)
+                        typed_rows.append(typed_row)
                     else:
                         break
 
@@ -450,21 +450,21 @@ class Table(BaseFacts):
                 # BATCH HAS ADDITIONAL COLUMNS!!
                 # WE CAN NOT USE THE EXISTING SHARD, MAKE A NEW ONE:
                 self._create_new_shard()
-                Log.note(
+                DEBUG and Log.note(
                     "added new shard with name: {{shard}}", shard=self.shard.table_id
                 )
-            with Timer("insert {{num}} rows to bq", param={"num": len(rows)}):
+            with Timer("insert {{num}} rows to bq", param={"num": len(rows)}, verbose=DEBUG):
                 failures = self.container.client.insert_rows_json(
                     self.shard,
-                    json_rows=output,
-                    row_ids=[None] * len(output),
+                    json_rows=typed_rows,
+                    row_ids=[None] * len(typed_rows),
                     skip_invalid_rows=False,
                     ignore_unknown_values=False,
                 )
             if failures:
                 if all(r == "stopped" for r in wrap(failures).errors.reason):
                     self._create_new_shard()
-                    Log.note(
+                    DEBUG and Log.note(
                         "STOPPED encountered: Added new shard with name: {{shard}}",
                         shard=self.shard.table_id,
                     )
@@ -475,31 +475,38 @@ class Table(BaseFacts):
                 )
             else:
                 self.last_extend = Date.now()
-                Log.note("{{num}} rows added", num=len(output))
-        except Exception as e:
-            e = Except.wrap(e)
+                DEBUG and Log.note("{{num}} rows added", num=len(typed_rows))
+        except Exception as cause:
+            cause = Except.wrap(cause)
             if (
-                len(output) < 2
-                and "Your client has issued a malformed or illegal request." in e
+                len(typed_rows) < 2
+                and "Your client has issued a malformed or illegal request." in cause
             ):
                 Log.error(
                     "big query complains about:\n{{data|json}}",
-                    data=output,
-                    cause=e
+                    data=typed_rows,
+                    cause=cause
                 )
             elif len(rows) > 1 and (
-                "Request payload size exceeds the limit" in e
-                or "An existing connection was forcibly closed by the remote host" in e
-                or "Your client has issued a malformed or illegal request." in e
-                or "BrokenPipeError(32, 'Broken pipe')" in e
+                "Request payload size exceeds the limit" in cause
+                or "An existing connection was forcibly closed by the remote host" in cause
+                or "Your client has issued a malformed or illegal request." in cause
+                or "BrokenPipeError(32, 'Broken pipe')" in cause
+                or "ConnectionResetError(104, 'Connection reset by peer')" in cause
             ):
-                # TRY A SMALLER BATCH
-                cut = len(rows) // 2
-                self.extend(rows[:cut])
-                self.extend(rows[cut:])
-                return
+                Log.warning("problem with batch of size {{size}}", size=len(rows), cause=cause)
+                batch_size = ceiling(len(rows) / 10)
+                try:
+                    DEBUG and Log.note("attempt smaller batches of size {{batch_size}}", batch_size=batch_size)
+                    for _, chunk in jx.chunk(rows, batch_size):
+                        self._extend(chunk)
+                    return
+                except Exception as cause2:
+                    Log.error("smaller batches of size {{batch_size}} did not work", batch_size=batch_size, cause=cause2)
+            elif len(rows) == 1:
+                Log.error("Could not insert document\n{{doc|json|indent}}", doc=rows[0], cause=cause)
             else:
-                Log.error("Do not know how to handle", cause=e)
+                Log.error("Do not know how to handle", cause=cause)
 
     def add(self, row):
         self.extend([row])
@@ -581,7 +588,7 @@ class Table(BaseFacts):
             )
             selects.append(q)
 
-        Log.note("inserting into table {{table}}", table=text(primary_shard_name))
+        DEBUG and Log.note("inserting into table {{table}}", table=text(primary_shard_name))
         matched = []
         unmatched = []
         for sel, shard, flake in zip(selects, shards, shard_flakes):
@@ -611,7 +618,7 @@ class Table(BaseFacts):
                 )
                 DEBUG and Log.note("{{sql}}", sql=text(command))
                 job = self.container.query_and_wait(command)
-                Log.note("job {{id}} state = {{state}}", id=job.job_id, state=job.state)
+                DEBUG and Log.note("job {{id}} state = {{state}}", id=job.job_id, state=job.state)
 
                 if job.errors:
                     Log.error(
@@ -628,7 +635,7 @@ class Table(BaseFacts):
                 command = ConcatSQL(SQL_INSERT, quote_column(primary_full_name), s)
                 DEBUG and Log.note("{{sql}}", sql=text(command))
                 job = self.container.query_and_wait(command)
-                Log.note(
+                DEBUG and Log.note(
                     "from {{shard}}, job {{id}}, state {{state}}",
                     id=job.job_id,
                     shard=shard.table_id,
@@ -682,7 +689,6 @@ class Table(BaseFacts):
             ],
         )
         # WRAP WITH etl.timestamp BEST SELECTION
-
         self.container.query_and_wait(
             ConcatSQL(
                 SQL(  # SOME KEYWORDS: ROWNUM RANK
