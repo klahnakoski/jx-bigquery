@@ -34,13 +34,13 @@ All column names are given a suffix with the type information. This ensures one 
 
 | name | type        | typed name | example json      | typed json           |
 |------|-------------|------------|-------------------|----------------------|
-| `a`  | `Boolean`   | `a._b_`    | `{"a": true}`     | {"a": {"_b_": true}} |
-| `a`  | `integer`   | `a._i_`    | `{"a": 1}`        | {"a": {"_i_": 1}}    |
-| `a`  | `number`    | `a._n_`    | `{"a": 1.0}`      | {"a": {"_n_": 1.0}}  |
-| `a`  | `timestamp` | `a._t_`    | `{"a": 0}`        | {"a": {"_t_": 0}}    |
-| `a`  | `string`    | `a._s_`    | `{"a": "1"}`      | {"a": {"_s_": "1"}}  |
-| `a`  | `object`    | `a._e_`    | `{"a": {}}`       | {"a": {"_e_": 1}}    |
-| `a`  | `array`     | `a._n_`    | `{"a": [1, 2]}`   | {"a": {"_n_": [{"_n_": 1}, {"_n_": 2]}} |
+| `a`  | `Boolean`   | `a._b_`    | `{"a": true}`     | `{"a": {"_b_": true}}` |
+| `a`  | `integer`   | `a._i_`    | `{"a": 1}`        | `{"a": {"_i_": 1}}`    |
+| `a`  | `number`    | `a._n_`    | `{"a": 1.0}`      | `{"a": {"_n_": 1.0}}`  |
+| `a`  | `timestamp` | `a._t_`    | `{"a": 0}`        | `{"a": {"_t_": 0}}`    |
+| `a`  | `string`    | `a._s_`    | `{"a": "1"}`      | `{"a": {"_s_": "1"}}`  |
+| `a`  | `object`    | `a._e_`    | `{"a": {}}`       | `{"a": {"_e_": 1}}`    |
+| `a`  | `array`     | `a._a_`    | `{"a": [1]}`      | `{"a": {"_a_": [{"_n_": 1}]}}` |
 
 This format allows `jx-bigquery` to
 
