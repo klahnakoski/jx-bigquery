@@ -21,6 +21,7 @@ from mo_times import Date, Duration
 
 SQL_TRUE = SQL(" TRUE ")
 SQL_FALSE = SQL(" FALSE ")
+SQL_FLOAT64 = SQL(" FLOAT64 ")
 TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
 ALLOWED = string.ascii_letters + string.digits
 GUID = "_id"  # user accessible, unique value across many machines
@@ -38,7 +39,8 @@ class ApiName(object):
     """
     REPRESENT NAMES FROM/TO THE BIGQUERY API
     All names from the API should be wrapped with this
-    All names being sent to API should be of this type (name == text(ApiName(name))
+    All names being sent to API should be of this type
+    (note:  name == text(ApiName(name))
     """
 
     __slots__ = ["values"]

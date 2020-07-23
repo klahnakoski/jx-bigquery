@@ -13,7 +13,7 @@ from jx_python import jx
 from mo_future import text
 
 import tests
-from jx_bigquery.sql import ApiName
+from jx_bigquery.sql import ApiName, escape_name
 
 
 class TestGeneral(tests.TestBigQuery):
@@ -36,3 +36,7 @@ class TestGeneral(tests.TestBigQuery):
         # update view to new table
         result = jx.sort(table2.all_records())
         self.assertEqual(result, [42])
+
+    def test_escape(self):
+        self.assertEqual(escape_name("\n"), "_a_")
+        self.assertEqual(escape_name("😀"), "_1f600_")
