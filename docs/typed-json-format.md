@@ -1,0 +1,1 @@
+# details on typed json in BigQuery
