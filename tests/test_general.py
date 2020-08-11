@@ -38,5 +38,5 @@ class TestGeneral(tests.TestBigQuery):
         self.assertEqual(result, [42])
 
     def test_escape(self):
-        self.assertEqual(escape_name("\n"), "_a_")
-        self.assertEqual(escape_name("😀"), "_1f600_")
+        self.assertEqual(escape_name("\n").values[0], "_a_")
+        self.assertEqual(escape_name("😀").values[0], "_1f600_")
