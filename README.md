@@ -22,7 +22,7 @@ The library is intended to manage multiple BigQuery tables to give the illusion 
 ## Configuration
 
 * `table` - Any name you wish to give to this table series
-* `top_level_fields` - BigQuery demands that control columns are top-level.  Define them here.
+* `top_level_fields` - dictionary from deep property path to top-level property name. BigQuery demands that control columns are top-level; which may not be the case for your documents.
 * `partition` - 
   * `field` - The dot-delimited field used to partition the tables (must be `time` datatype)
   * `expire` - When BigQuery will automatically drop your data. 
