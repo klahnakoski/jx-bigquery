@@ -2,3 +2,7 @@
 .svn
 *.iml
 __pycache__
+
+/setup.py
+
+
